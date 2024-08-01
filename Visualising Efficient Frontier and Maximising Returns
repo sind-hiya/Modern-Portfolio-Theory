@@ -29,7 +29,7 @@ def create_returns_list(symbol_array):
         for j in range(len(monthly_adjusted_close) - min_length, len(monthly_adjusted_close)):
             correct_length_array = monthly_adjusted_close.iloc[j]
         for j in range(0, ((len(correct_length_array)-1)//12)):
-            returns.append(100*(monthly_adjusted_close.iloc[12*(i+1)] - monthly_adjusted_close.iloc[12*(i)])/monthly_adjusted_close.iloc[12*(i)])
+            returns.append(100*(correct_length_array[12*(i+1)] - correct_length_array[12*(i)])/correct_length_array[12*(i)])
         returns_array.append(returns)
     return returns_array    
 
