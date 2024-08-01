@@ -6,7 +6,7 @@ from pandas.core.frame import DataFrame
 import requests
 from alpha_vantage.timeseries import TimeSeries
 import math
-API_key = 'TSX9611IFPXD1536'
+API_key = '02LBWZQDCV9ATUB2'
 ts = TimeSeries(key = API_key, output_format='pandas')
 
 def create_returns_list(symbol_array):
