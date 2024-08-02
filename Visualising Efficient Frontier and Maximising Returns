@@ -8,7 +8,7 @@ from pandas.core.frame import DataFrame
 import requests
 from alpha_vantage.timeseries import TimeSeries
 import math
-API_key = '02LBWZQDCV9ATUB2'
+API_key = 'TSX9611IFPXD1536'
 ts = TimeSeries(key = API_key, output_format='pandas')
 
 def create_returns_list(symbol_array):
@@ -18,7 +18,7 @@ def create_returns_list(symbol_array):
         monthly_adjusted = ts.get_monthly_adjusted(symbol_array[i])
         data = monthly_adjusted[0]
         monthly_adjusted_close = data['5. adjusted close']
-        if len(monthly_adjusted_close) < min_length:
+        if (len(monthly_adjusted_close) < min_length):
             min_length = len(monthly_adjusted_close)
     for i in range(len(symbol_array)):
         monthly_adjusted = ts.get_monthly_adjusted(symbol_array[i])
@@ -28,8 +28,8 @@ def create_returns_list(symbol_array):
         correct_length_array = []
         for j in range(len(monthly_adjusted_close) - min_length, len(monthly_adjusted_close)):
             correct_length_array.append(monthly_adjusted_close.iloc[j])
-        for j in range(0, ((len(correct_length_array)-1)//12)):
-            returns.append(100*(correct_length_array[12*(i+1)] - correct_length_array[12*(i)])/correct_length_array[12*(i)])
+        for k in range(0, ((len(correct_length_array)-1)//12)):
+            returns.append(100*(correct_length_array[12*(k+1)] - correct_length_array[12*(k)])/correct_length_array[12*(k)])
         returns_array.append(returns)
     return returns_array    
 
@@ -40,13 +40,8 @@ def mean_returns(returns_array):
     return means
     
 def expected_return_portfolio(mean_returns, weights):
-    sum_weights = 0
-    for i in range(len(weights)):
-        sum_weights = sum_weights + weights[i]
-    if (len(mean_returns) == len(weights) and np.isclose(sum_weights, 1)):
-        u=0
-        for i in range(len(mean_returns)):
-            u = u + mean_returns[i]*weights[i]
+    if (len(mean_returns) == len(weights) and np.isclose(np.sum(weights), 1)):
+        u= np.vdot(mean_returns, weights)
         return u 
     else:
         raise ValueError("Dimensions are unequal or weights don't sum to 1")
@@ -55,10 +50,8 @@ def covariance_returns_x_y(returns_x, returns_y):
     n = len(returns_x)
     if len(returns_y) == n:
         mean_xy = 0
-        for i in range(n):
-            mean_xy = mean_xy + returns_x[i]*returns_y[i]/n
-        covariance = mean_xy - np.mean(returns_x)*np.mean(returns_y)
-        return covariance
+        u = np.cov(returns_x,returns_y)
+        return u[0][1]
     else:
         raise ValueError("Dimensions are unequal")
     
@@ -71,13 +64,11 @@ def covariance_returns_matrix(returns_array):
     return covariance_returns_matrix
 
 def risk_portfolio(covariance_returns_matrix, weights):
-    sum_weights = 0
-    for i in range(len(weights)):
-        sum_weights = sum_weights + weights[i]
     dim = np.shape(covariance_returns_matrix)
     m = dim[0]
     n = dim[1]
-    if (m == n and np.isclose(sum_weights, 1)):
+    q = len(weights)
+    if (m == n and n == q and np.isclose(np.sum(weights), 1)):
         covariance = 0
         for i in range(m):
             for j in range(n):
@@ -90,7 +81,7 @@ def draw_mpt_graph(expecteds_return_portfolio, risks_portfolio):
     if len(expecteds_return_portfolio) == len(risks_portfolio):
         x = expecteds_return_portfolio
         y = risks_portfolio
-        plt.plot(x,y, "b-", label='Efficient Frontier')
+        plt.plot(x,y, "bo", label='Efficient Frontier')
         plt.xlabel('Expected Return')
         plt.ylabel('Risk (Standard Deviation)')
         plt.title('Mean-Variance Optimisation (Efficient Frontier)')
@@ -101,19 +92,22 @@ def draw_mpt_graph(expecteds_return_portfolio, risks_portfolio):
         print("dimensions are unequal")
 
 def maximising_return_weights(mean_returns):
-    sum = np.sum(mean_returns)
-    if sum == 0:
-        return mean_returns
-    return mean_returns/sum
-    
-individual_returns = create_returns_list(['AAPL', 'MSFT', 'AMZN', 'TSLA', 'GOOGL', 'GOOG'])
+    mean_positive_returns = []
+    for i in range(len(mean_returns)):
+        if (mean_returns[i] > 0):
+            mean_positive_returns.append(mean_returns[i])
+        else:
+            mean_positive_returns.append(0)
+    if np.sum(mean_positive_returns) == 0:
+        return mean_positive_returns
+    return mean_positive_returns/np.sum(mean_positive_returns)
+
+individual_returns = create_returns_list(['AAPL', 'MSFT', 'AMZN', 'TSLA', 'GOOGL', 'GOOG']) 
 mean_individual_returns = mean_returns(individual_returns)
-
 covariance_returns_matrix = covariance_returns_matrix(individual_returns)
-
 expecteds_return_portfolio = []
 risks_portfolio = []
-for i in range(100000):
+for i in range(1000):
     weights_array_i = []
     sum = 0
     for j in range(5):
@@ -126,3 +120,4 @@ for i in range(100000):
     expecteds_return_portfolio.append(expected_return)
     risks_portfolio.append(risk)
 draw_mpt_graph(expecteds_return_portfolio, risks_portfolio)
+print(maximising_return_weights(mean_individual_returns))
