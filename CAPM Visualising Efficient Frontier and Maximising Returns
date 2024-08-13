@@ -1,0 +1,165 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from numpy import random
+import pandas as pd
+from pandas.core.frame import DataFrame
+import requests
+from alpha_vantage.timeseries import TimeSeries
+import math
+API_key = 'TSX9611IFPXD1536'
+ts = TimeSeries(key = API_key, output_format='pandas')
+iei_annual_coupon_payment = 3.4 #as of 1/8/24, update every month as I can't find a way to generate real-time data
+intraday = ts.get_intraday(symbol='IEI', interval='1min', outputsize='compact')
+intraday_data = intraday[0]
+intraday_close = intraday_data['4. close']
+current_iei_price = intraday_close.iloc[0]
+iei_current_yield = 100*(iei_annual_coupon_payment/current_iei_price)
+def create_returns_list(symbol_array):
+    returns_array = []
+    min_length = math.inf
+    for i in range(len(symbol_array)):
+        monthly_adjusted = ts.get_monthly_adjusted(symbol_array[i])
+        data = monthly_adjusted[0]
+        monthly_adjusted_close = data['5. adjusted close']
+        if (len(monthly_adjusted_close) < min_length):
+            min_length = len(monthly_adjusted_close)
+    for i in range(len(symbol_array)):
+        monthly_adjusted = ts.get_monthly_adjusted(symbol_array[i])
+        data = monthly_adjusted[0]
+        monthly_adjusted_close = data['5. adjusted close']
+        returns = []
+        correct_length_array = []
+        for j in range(len(monthly_adjusted_close) - min_length, len(monthly_adjusted_close)):
+            correct_length_array.append(monthly_adjusted_close.iloc[j])
+        for k in range(0, ((len(correct_length_array)-1)//12)):
+            returns.append(100*(correct_length_array[12*(k+1)] - correct_length_array[12*(k)])/correct_length_array[12*(k)])
+        returns_array.append(returns)
+    return returns_array    
+
+def covariance_returns_x_y(returns_x, returns_y):
+    n = len(returns_x)
+    if len(returns_y) == n:
+        mean_xy = 0
+        u = np.cov(returns_x,returns_y)
+        return u[0][1]
+    else:
+        raise ValueError("Dimensions are unequal")
+
+def beta_portfolio(symbol_array, weights):
+    if ((len(symbol_array)) == len(weights) and np.isclose(np.sum(weights), 1)):
+        symbol_array.append('SPY')
+        returns_list = create_returns_list(symbol_array)
+        alpha = 0
+        for i in range(0, len(returns_list) - 1):
+            alpha += weights[i]*covariance_returns_x_y(returns_list[i], returns_list[-1])
+        
+        beta = alpha/covariance_returns_x_y(returns_list[-1], returns_list[-1])
+        return beta
+    else:
+        raise ValueError("Dimensions are unequal or weights don't sum to 1")
+def betas(symbol_array):
+    betas = []
+    symbol_array.append('SPY')
+    returns_list = create_returns_list(symbol_array)
+    var = covariance_returns_x_y(returns_list[-1], returns_list[-1])
+    for i in range(len(symbol_array) - 1):
+        beta = covariance_returns_x_y(returns_list[i], returns_list[-1])/var
+        betas.append(beta)
+    return betas
+def beta_portfolio(betas, weights):
+    if ((len(betas)) == len(weights) and np.isclose(np.sum(weights), 1)):
+        beta = 0
+        for i in range(0, len(betas)):
+            beta += weights[i]*betas[i]
+        return beta
+    else:
+        raise ValueError("Dimensions are unequal or weights don't sum to 1")
+# dont know if needed
+def mean_returns(returns_array):
+    means = []
+    for i in range(len(returns_array)):
+        means.append(np.mean(returns_array[i]))
+    return means
+    
+def expecteds_return(symbol_array):
+    expecteds = []
+    betas = betas(symbol_array)
+    symbol_array.append('IEI')
+    symbol_array.append('SPY')
+    returns_market = create_returns_list(symbol_array)[-1]
+    returns_bond = create_returns_list(symbol_array)[-2]
+    mean_excess_return = 0
+    n = len(symbol_array[-1])
+    for i in range(n):
+        mean_excess_return += (returns_market[i] - returns_bond[i])/n
+    for j in range(len(symbol_array)):
+        expecteds.append(betas[j]*mean_excess_return + iei_current_yield)
+    return expecteds
+
+def expected_return_portfolio(expecteds_return, weights):
+    if ((len(expecteds_return)) == len(weights) and np.isclose(np.sum(weights), 1)):
+        expected = 0
+        for i in range(0, len(expecteds_return)):
+            expected += weights[i]*expecteds_return[i]
+        return expected
+    else:
+        raise ValueError("Dimensions are unequal or weights don't sum to 1")    
+    
+def covariance_returns_matrix(individual_returns):
+    n = len(individual_returns)
+    covariance_returns_matrix = np.zeros((n,n))
+    for i in range(n):
+        for j in range(n):
+            covariance_returns_matrix[i,j] = covariance_returns_x_y(individual_returns[i], individual_returns[j])
+    return covariance_returns_matrix
+
+def risk_portfolio(covariance_returns_matrix, weights):
+    dim = np.shape(covariance_returns_matrix)
+    m = dim[0]
+    n = dim[1]
+    q = len(weights)
+    if (m == n and n == q and np.isclose(np.sum(weights), 1)):
+        covariance = 0
+        for i in range(m):
+            for j in range(n):
+                           covariance = covariance + weights[i]*weights[j]*(covariance_returns_matrix[i][j])
+        return covariance**0.5
+    else:
+        raise ValueError("Dimensions are unequal or weights don't sum to 1")
+        
+def draw_mpt_graph(symbol_array):
+    covariance_returns_matrix = covariance_returns_matrix(create_returns_list(symbol_array))
+    expecteds_return = expecteds_return(symbol_array)
+    x = []
+    y = []
+    for i in range(1000):
+        weights_array_i = []
+        sum = 0
+        for j in range(5):
+            weight = random.rand()
+            weights_array_i.append(weight)
+            sum += weight
+        weights_array_i.append(1 - sum)
+        risk = risk_portfolio(covariance_returns_matrix, weights_array_i)
+        x.append(risk)
+        y.append(expected_return_portfolio(expecteds_return, weights_array_i))
+    plt.plot(x,y, "bo", label='Efficient Frontier')
+    plt.xlabel('Expected Return')
+    plt.ylabel('Risk (Standard Deviation)')
+    plt.title('Mean-Variance Optimisation (Efficient Frontier)')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+    
+def maximising_return_weights(expecteds_return):
+    expected_positive_returns = []
+    for i in range(len(expecteds_return)):
+        if (expecteds_return[i] > 0):
+            expected_positive_returns.append(expecteds_return[i])
+        else:
+            expected_positive_returns.append(0)
+    if np.sum(expected_positive_returns) == 0:
+        return expected_positive_returns
+    return expected_positive_returns/np.sum(expected_positive_returns)
+expecteds_return = expecteds_return(['AAPL', 'MSFT', 'AMZN', 'TSLA', 'GOOGL', 'GOOG'])
+print(maximising_return_weights(expecteds_return))
