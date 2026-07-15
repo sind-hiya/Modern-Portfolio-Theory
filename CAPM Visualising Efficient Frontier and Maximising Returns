@@ -155,3 +155,36 @@ def maximising_return_weights(expecteds_return):
 returns = create_returns_list(['AAPL', 'MSFT', 'AMZN', 'TSLA', 'GOOGL', 'GOOG'])
 draw_mpt_graph(returns)
 print(maximising_return_weights(expecteds_return(returns)))
+individual_returns = create_returns_list(['AAPL', 'MSFT', 'AMZN', 'TSLA', 'GOOGL', 'GOOG']) 
+mean_individual_returns = mean_returns(individual_returns)
+covariance_returns_matrix = covariance_returns_matrix(individual_returns)
+expecteds_return_portfolio = []
+risks_portfolio = []
+for i in range(1000):
+    weights_array_i = []
+    sum = 0
+    for j in range(5):
+        weight = random.rand()
+        weights_array_i.append(weight)
+        sum += weight
+    weights_array_i.append(1 - sum)
+    expected_return = expected_return_portfolio(mean_individual_returns, weights_array_i)
+    risk = beta_portfolio(betas(individual_returns, weights_array_i))
+    expecteds_return_portfolio.append(expected_return)
+    risks_portfolio.append(risk)
+draw_mpt_graph(expecteds_return_portfolio, risks_portfolio)
+print(maximising_return_weights(mean_individual_returns))
+
+#test
+returns = [
+    [20.5, -26.4, 34.6, 18.2, -12.1, 28.4, 15.1,  8.2,  -5.4, 22.1], # AAPL
+    [15.2, -18.7, 28.1, 22.4,  -8.3, 19.5, 12.3, 10.1,  -2.1, 18.5], # MSFT
+    [25.1, -45.2, 18.4, 12.1, -15.5, 32.1,  8.4,  5.2, -10.2, 15.6], # AMZN
+    [50.3, -65.1, 80.2, -15.4, 25.6, 45.2, -12.3, 30.1, -20.5, 60.2], # TSLA
+    [18.4, -30.2, 22.1, 14.3, -10.5, 20.2, 11.1,  7.5,  -4.2, 16.4], # GOOGL
+    [18.2, -30.1, 21.9, 14.1, -10.4, 20.1, 11.0,  7.4,  -4.1, 16.2], # GOOG
+    [ 1.2,   2.5,  -1.1,  0.5,   3.2,  1.8,  2.1, -0.5,   4.2,  1.0], # IEI (Bond)
+    [12.4, -18.1, 20.2, 10.5,  -6.2, 15.3,  8.1,  5.0,  -2.5, 12.1]  # SPY (Market)
+]
+draw_mpt_graph(returns)
+print(maximising_return_weights(mean_individual_returns))
